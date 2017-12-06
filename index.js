@@ -1,15 +1,11 @@
 const EventEmitter = require('events').EventEmitter
 const inherits = require('util').inherits
 const ethUtil = require('ethereumjs-util')
-const EthBlockTracker = require('eth-block-tracker')
 const map = require('async/map')
 const eachSeries = require('async/eachSeries')
 const Stoplight = require('./util/stoplight.js')
-const cacheUtils = require('./util/rpc-cache-utils.js')
-const createPayload = require('./util/create-payload.js')
 
 module.exports = Web3ProviderEngine
-
 
 inherits(Web3ProviderEngine, EventEmitter)
 
@@ -17,48 +13,15 @@ function Web3ProviderEngine(opts) {
   const self = this
   EventEmitter.call(self)
   self.setMaxListeners(30)
+  
   // parse options
   opts = opts || {}
-  // block polling
-  const skipInitBlockProvider = { sendAsync: self._handleAsync.bind(self) }
-  self._blockTracker = new EthBlockTracker({
-    provider: skipInitBlockProvider,
-    pollingInterval: opts.pollingInterval || 4000,
-  })
-  // handle new block
-  self._blockTracker.on('block', (jsonBlock) => {
-    const bufferBlock = toBufferBlock(jsonBlock)
-    self._setCurrentBlock(bufferBlock)
-  })
-
-  // emit block events from the block tracker
-  self._blockTracker.on('block', self.emit.bind(self, 'rawBlock'))
-  self._blockTracker.on('sync', self.emit.bind(self, 'sync'))
-  self._blockTracker.on('latest', self.emit.bind(self, 'latest'))
 
   // set initialization blocker
   self._ready = new Stoplight()
-  // unblock initialization after first block
-  self._blockTracker.once('block', () => {
-    self._ready.go()
-  })
-  // local state
-  self.currentBlock = null
+  self._ready.go()
+
   self._providers = []
-}
-
-// public
-
-Web3ProviderEngine.prototype.start = function(){
-  const self = this
-  // start block polling
-  self._blockTracker.start()
-}
-
-Web3ProviderEngine.prototype.stop = function(){
-  const self = this
-  // stop block polling
-  self._blockTracker.stop()
 }
 
 Web3ProviderEngine.prototype.addProvider = function(source){
